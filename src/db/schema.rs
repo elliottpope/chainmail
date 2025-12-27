@@ -11,7 +11,12 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<()> {
             imap_server TEXT NOT NULL,
             imap_port INTEGER NOT NULL,
             username TEXT NOT NULL,
-            password TEXT NOT NULL,
+            password TEXT,
+            auth_type TEXT NOT NULL DEFAULT 'password',
+            oauth_access_token TEXT,
+            oauth_refresh_token TEXT,
+            oauth_expires_at TEXT,
+            provider TEXT,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         "#,

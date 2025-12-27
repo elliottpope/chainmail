@@ -1,6 +1,7 @@
 mod app;
 mod db;
 mod imap;
+mod oauth;
 mod ui;
 mod vim;
 
