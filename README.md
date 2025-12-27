@@ -8,6 +8,7 @@ A desktop email client for Linux/Wayland written in Rust with Vim-like keybindin
 - **Four modes**: Normal, Insert, Visual, and Command modes for different interactions
 - **IMAP support**: Connect to IMAP email servers (POP and SMTP coming later)
 - **Multiple accounts**: Manage multiple email accounts in one interface
+- **OAuth 2.0 support**: Secure Gmail authentication via OAuth
 - **SQLite caching**: Fast local caching of emails and account information
 - **Search functionality**: Quickly find emails with the built-in search
 - **Modern GUI**: Built with iced for a native, performant interface
@@ -20,7 +21,8 @@ src/
 ├── app.rs            # Main application state and logic
 ├── ui/               # UI components
 │   ├── mod.rs
-│   └── layout.rs     # UI layout (account selector, email list, email display)
+│   ├── layout.rs     # Main email view layout
+│   └── account_management.rs # Account management screens
 ├── vim/              # Vim mode system
 │   ├── mod.rs
 │   ├── modes.rs      # Mode definitions (Normal, Insert, Visual, Command)
@@ -30,6 +32,10 @@ src/
 │   ├── schema.rs     # Database schema creation
 │   ├── models.rs     # Data models (Account, Mailbox, Message)
 │   └── queries.rs    # Database queries
+├── oauth/            # OAuth 2.0 authentication
+│   ├── mod.rs
+│   ├── gmail.rs      # Gmail OAuth provider
+│   └── server.rs     # Local OAuth callback server
 └── imap/             # IMAP client
     ├── mod.rs
     ├── client.rs     # IMAP connection manager
@@ -94,10 +100,37 @@ src/
 ### Command Mode
 
 - `:find <query>` or `:f <query>` - Search for emails
+- `:account` or `:acc` - Open account management
 - `:quit` or `:q` - Quit application
 - `Backspace` - Delete last character (returns to Normal mode if empty)
 - `Enter` - Execute command
 - `Esc` - Cancel and return to Normal mode
+
+## Adding Accounts
+
+### Gmail with OAuth 2.0
+
+Chainmail supports Gmail accounts using secure OAuth 2.0 authentication:
+
+1. Enter command mode with `:`
+2. Type `account` or `acc` to open account management
+3. Click "Add Account"
+4. Select "Gmail" as the provider
+5. Your browser will open for Gmail authorization
+6. Sign in to your Gmail account
+7. Review and accept the permissions
+8. You'll be automatically redirected back to Chainmail
+9. Your account will be added and ready to use
+
+**Note**: For Gmail OAuth to work, you need to configure OAuth credentials in `src/oauth/gmail.rs`:
+- Set `GMAIL_CLIENT_ID` to your Google Cloud Console client ID
+- Set `GMAIL_CLIENT_SECRET` to your client secret
+
+See [Google's OAuth 2.0 documentation](https://developers.google.com/identity/protocols/oauth2) for details on creating OAuth credentials.
+
+### Other IMAP Providers
+
+Support for manual IMAP configuration is coming soon. For now, only Gmail with OAuth is supported.
 
 ## Building and Running
 
@@ -140,24 +173,33 @@ Caches email messages with metadata and body previews.
 - **sqlx** - Async SQL database access
 - **async-imap** - IMAP client
 - **async-native-tls** - TLS support for IMAP
+- **oauth2** - OAuth 2.0 client library
+- **reqwest** - HTTP client for OAuth token exchange
+- **tiny_http** - Lightweight HTTP server for OAuth callback
 - **chrono** - Date and time handling
 - **serde** - Serialization framework
 
 ## Current Limitations
 
 - No POP or SMTP support yet (IMAP only)
-- Account management UI not yet implemented (accounts must be added via database)
+- Gmail OAuth requires manual configuration of client ID/secret
+- Manual IMAP account setup not yet implemented (only OAuth providers)
 - Email composition not yet implemented
 - No attachment support yet
 - Search is local only (no server-side IMAP search)
+- No automatic sync/fetching of emails yet
 
 ## Roadmap
 
-- [ ] Add account management UI
+- [x] Add account management UI
+- [x] Implement Gmail OAuth 2.0 authentication
+- [ ] Add manual IMAP configuration for other providers
 - [ ] Implement email composition (Insert mode)
 - [ ] Add SMTP support for sending emails
+- [ ] Implement automatic email syncing/fetching
 - [ ] Implement attachment handling
 - [ ] Add server-side IMAP search
+- [ ] Support OAuth for other providers (Outlook, Yahoo, etc.)
 - [ ] Support for more complex Vim motions
 - [ ] Customizable keybindings
 - [ ] Themes and styling options

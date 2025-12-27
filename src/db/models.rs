@@ -9,8 +9,35 @@ pub struct Account {
     pub imap_server: String,
     pub imap_port: u16,
     pub username: String,
-    pub password: String,
+    pub password: Option<String>,
+    pub auth_type: String,
+    pub oauth_access_token: Option<String>,
+    pub oauth_refresh_token: Option<String>,
+    pub oauth_expires_at: Option<DateTime<Utc>>,
+    pub provider: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AuthType {
+    Password,
+    OAuth,
+}
+
+impl AuthType {
+    pub fn to_string(&self) -> &'static str {
+        match self {
+            AuthType::Password => "password",
+            AuthType::OAuth => "oauth",
+        }
+    }
+
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            "oauth" => AuthType::OAuth,
+            _ => AuthType::Password,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

@@ -30,6 +30,64 @@ pub async fn insert_account(
     Ok(result.last_insert_rowid())
 }
 
+pub async fn insert_oauth_account(
+    pool: &SqlitePool,
+    name: &str,
+    email: &str,
+    imap_server: &str,
+    imap_port: u16,
+    username: &str,
+    provider: &str,
+    access_token: &str,
+    refresh_token: Option<&str>,
+    expires_at: Option<DateTime<Utc>>,
+) -> Result<i64> {
+    let result = sqlx::query(
+        r#"
+        INSERT INTO accounts (name, email, imap_server, imap_port, username, auth_type,
+                              provider, oauth_access_token, oauth_refresh_token, oauth_expires_at)
+        VALUES (?, ?, ?, ?, ?, 'oauth', ?, ?, ?, ?)
+        "#,
+    )
+    .bind(name)
+    .bind(email)
+    .bind(imap_server)
+    .bind(imap_port as i64)
+    .bind(username)
+    .bind(provider)
+    .bind(access_token)
+    .bind(refresh_token)
+    .bind(expires_at)
+    .execute(pool)
+    .await?;
+
+    Ok(result.last_insert_rowid())
+}
+
+pub async fn update_oauth_tokens(
+    pool: &SqlitePool,
+    account_id: i64,
+    access_token: &str,
+    refresh_token: Option<&str>,
+    expires_at: Option<DateTime<Utc>>,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        UPDATE accounts
+        SET oauth_access_token = ?, oauth_refresh_token = ?, oauth_expires_at = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(access_token)
+    .bind(refresh_token)
+    .bind(expires_at)
+    .bind(account_id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
 pub async fn get_all_accounts(pool: &SqlitePool) -> Result<Vec<Account>> {
     let accounts = sqlx::query_as::<_, Account>("SELECT * FROM accounts ORDER BY name")
         .fetch_all(pool)

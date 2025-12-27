@@ -3,7 +3,7 @@ use crate::vim::VimMode;
 use iced::widget::{column, container, row, scrollable, text, Column, Container, Row, Space};
 use iced::{alignment, Border, Color, Element, Length, Padding};
 
-pub fn view(app: &ChainmailApp) -> Element<Message> {
+pub fn main_view(app: &ChainmailApp) -> Element<Message> {
     let content = column![
         search_bar(app),
         main_layout(app),

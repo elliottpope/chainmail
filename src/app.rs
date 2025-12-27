@@ -1,4 +1,5 @@
 use crate::db::{models::MessageWithMailbox, Database};
+use crate::oauth::{gmail::GmailOAuthProvider, server::OAuthCallbackServer, AccountProvider, OAuthProvider, OAuthTokens};
 use crate::vim::{VimAction, VimKeyHandler, VimState};
 use iced::keyboard::{self, Key, Modifiers};
 use iced::{event, Element, Event, Subscription, Task, Theme};
@@ -14,6 +15,24 @@ pub enum Message {
     LoadMessages(Vec<MessageWithMailbox>),
     ExecuteVimAction(VimAction),
     SearchQueryChanged(String),
+    ShowAccountManagement,
+    ShowProviderSelection,
+    SelectProvider(AccountProvider),
+    StartOAuthFlow,
+    OAuthComplete(Result<OAuthTokens, String>),
+    SaveOAuthAccount(String, String),
+    BackToMain,
+    AccountNameInput(String),
+    EmailInput(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AppScreen {
+    Main,
+    AccountManagement,
+    ProviderSelection,
+    OAuthInProgress,
+    ManualAccountSetup,
 }
 
 pub struct ChainmailApp {
@@ -25,6 +44,11 @@ pub struct ChainmailApp {
     displayed_messages: Vec<MessageWithMailbox>,
     search_query: String,
     visual_selection_start: Option<usize>,
+    current_screen: AppScreen,
+    selected_provider: Option<AccountProvider>,
+    account_name_input: String,
+    email_input: String,
+    oauth_state: Option<String>,
 }
 
 impl ChainmailApp {
@@ -41,6 +65,11 @@ impl ChainmailApp {
             displayed_messages: Vec::new(),
             search_query: String::new(),
             visual_selection_start: None,
+            current_screen: AppScreen::Main,
+            selected_provider: None,
+            account_name_input: String::new(),
+            email_input: String::new(),
+            oauth_state: None,
         })
     }
 
@@ -99,6 +128,9 @@ impl ChainmailApp {
                     self.search_query = query.clone();
                     self.filter_messages();
                 }
+            }
+            "account" | "acc" | "accounts" => {
+                self.current_screen = AppScreen::AccountManagement;
             }
             "quit" | "q" => {
                 std::process::exit(0);
@@ -185,6 +217,140 @@ impl ChainmailApp {
                 self.filter_messages();
                 Task::none()
             }
+            Message::ShowAccountManagement => {
+                self.current_screen = AppScreen::AccountManagement;
+                Task::none()
+            }
+            Message::ShowProviderSelection => {
+                self.current_screen = AppScreen::ProviderSelection;
+                Task::none()
+            }
+            Message::SelectProvider(provider) => {
+                self.selected_provider = Some(provider.clone());
+                if provider == AccountProvider::Gmail {
+                    Task::done(Message::StartOAuthFlow)
+                } else {
+                    self.current_screen = AppScreen::ManualAccountSetup;
+                    Task::none()
+                }
+            }
+            Message::StartOAuthFlow => {
+                let provider = GmailOAuthProvider::new().expect("Failed to create OAuth provider");
+
+                match provider.authorize_url() {
+                    Ok((auth_url, state)) => {
+                        self.oauth_state = Some(state.clone());
+                        self.current_screen = AppScreen::OAuthInProgress;
+
+                        if let Err(e) = crate::oauth::server::open_browser(&auth_url) {
+                            tracing::error!("Failed to open browser: {}", e);
+                            return Task::done(Message::OAuthComplete(Err(format!("Failed to open browser: {}", e))));
+                        }
+
+                        let oauth_state_clone = state.clone();
+                        Task::perform(
+                            async move {
+                                let server = OAuthCallbackServer::new(8888)
+                                    .expect("Failed to start OAuth callback server");
+
+                                match server.wait_for_callback().await {
+                                    Ok(callback) => {
+                                        if callback.state != oauth_state_clone {
+                                            return Err("State mismatch".to_string());
+                                        }
+
+                                        let provider = GmailOAuthProvider::new()
+                                            .expect("Failed to create OAuth provider");
+
+                                        match provider.exchange_code(&callback.code, &callback.state).await {
+                                            Ok(tokens) => Ok(tokens),
+                                            Err(e) => Err(format!("Token exchange failed: {}", e)),
+                                        }
+                                    }
+                                    Err(e) => Err(format!("OAuth callback failed: {}", e)),
+                                }
+                            },
+                            Message::OAuthComplete,
+                        )
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to generate auth URL: {}", e);
+                        Task::done(Message::OAuthComplete(Err(format!("Failed to generate auth URL: {}", e))))
+                    }
+                }
+            }
+            Message::OAuthComplete(result) => {
+                match result {
+                    Ok(tokens) => {
+                        let db = self.db.clone();
+                        let email = self.email_input.clone();
+                        let name = self.account_name_input.clone();
+
+                        Task::perform(
+                            async move {
+                                let db = db.lock().await;
+                                let account_name = if name.is_empty() {
+                                    email.split('@').next().unwrap_or(&email).to_string()
+                                } else {
+                                    name
+                                };
+
+                                match crate::db::queries::insert_oauth_account(
+                                    db.pool(),
+                                    &account_name,
+                                    &email,
+                                    "imap.gmail.com",
+                                    993,
+                                    &email,
+                                    "gmail",
+                                    &tokens.access_token,
+                                    tokens.refresh_token.as_deref(),
+                                    tokens.expires_at,
+                                ).await {
+                                    Ok(_) => (account_name, email),
+                                    Err(e) => {
+                                        tracing::error!("Failed to save OAuth account: {}", e);
+                                        (String::new(), String::new())
+                                    }
+                                }
+                            },
+                            |(name, email)| Message::SaveOAuthAccount(name, email),
+                        )
+                    }
+                    Err(e) => {
+                        tracing::error!("OAuth flow failed: {}", e);
+                        self.current_screen = AppScreen::AccountManagement;
+                        Task::none()
+                    }
+                }
+            }
+            Message::SaveOAuthAccount(name, email) => {
+                if !name.is_empty() && !email.is_empty() {
+                    tracing::info!("Successfully added OAuth account: {} ({})", name, email);
+                }
+                self.current_screen = AppScreen::Main;
+                self.account_name_input.clear();
+                self.email_input.clear();
+                self.selected_provider = None;
+                self.oauth_state = None;
+                Task::none()
+            }
+            Message::BackToMain => {
+                self.current_screen = AppScreen::Main;
+                self.account_name_input.clear();
+                self.email_input.clear();
+                self.selected_provider = None;
+                self.oauth_state = None;
+                Task::none()
+            }
+            Message::AccountNameInput(input) => {
+                self.account_name_input = input;
+                Task::none()
+            }
+            Message::EmailInput(input) => {
+                self.email_input = input;
+                Task::none()
+            }
         }
     }
 
@@ -229,5 +395,21 @@ impl ChainmailApp {
             }
         }
         None
+    }
+
+    pub fn current_screen(&self) -> &AppScreen {
+        &self.current_screen
+    }
+
+    pub fn selected_provider(&self) -> Option<&AccountProvider> {
+        self.selected_provider.as_ref()
+    }
+
+    pub fn account_name_input(&self) -> &str {
+        &self.account_name_input
+    }
+
+    pub fn email_input(&self) -> &str {
+        &self.email_input
     }
 }
