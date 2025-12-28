@@ -42,7 +42,7 @@ impl VimKeyHandler {
         }
     }
 
-    fn handle_normal_mode(vim_state: &mut VimState, key: &Key, _modifiers: &Modifiers) -> VimAction {
+    fn handle_normal_mode(vim_state: &mut VimState, key: &Key, modifiers: &Modifiers) -> VimAction {
         match key {
             Key::Character(c) => {
                 let ch = c.chars().next().unwrap_or('\0');
@@ -84,8 +84,8 @@ impl VimKeyHandler {
                     }
 
                     // Page movement
-                    'd' if _modifiers.control() => VimAction::MovePageDown,
-                    'u' if _modifiers.control() => VimAction::MovePageUp,
+                    'd' if modifiers.control() => VimAction::MovePageDown,
+                    'u' if modifiers.control() => VimAction::MovePageUp,
 
                     // Mode switching
                     'i' => {
@@ -96,11 +96,11 @@ impl VimKeyHandler {
                         vim_state.enter_mode(VimMode::Visual);
                         VimAction::EnterVisualMode
                     }
-                    ':' => {
+                    ':' | ';' if ch == ':' || (ch == ';' && modifiers.shift()) => {
                         vim_state.enter_mode(VimMode::Command);
                         VimAction::EnterCommandMode
                     }
-                    '/' => {
+                    '/' | '?' if ch == '/' || (ch == '?' && !modifiers.shift()) => {
                         vim_state.enter_mode(VimMode::Command);
                         vim_state.append_to_command_buffer('f');
                         vim_state.append_to_command_buffer('i');
@@ -112,7 +112,7 @@ impl VimKeyHandler {
 
                     // Actions
                     '\n' | '\r' => VimAction::OpenEmail,
-                    '*' => VimAction::ToggleFlagged,
+                    '*' | '8' if ch == '*' || (ch == '8' && modifiers.shift()) => VimAction::ToggleFlagged,
                     'r' => VimAction::MarkAsRead,
                     'u' => VimAction::MarkAsUnread,
                     'd' if vim_state.get_pending_operator() == Some('d') => {
@@ -208,7 +208,7 @@ impl VimKeyHandler {
                         vim_state.enter_mode(VimMode::Normal);
                         VimAction::YankSelected
                     }
-                    '*' => VimAction::ToggleFlagged,
+                    '*' | '8' if ch == '*' || (ch == '8' && modifiers.shift()) => VimAction::ToggleFlagged,
 
                     // Count
                     '0'..='9' => {
