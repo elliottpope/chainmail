@@ -3,8 +3,8 @@ pub mod queries;
 pub mod schema;
 
 use anyhow::Result;
-use sqlx::sqlite::SqlitePool;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
+use std::str::FromStr;
 
 pub struct Database {
     pool: SqlitePool,
@@ -12,9 +12,12 @@ pub struct Database {
 
 impl Database {
     pub async fn new(database_url: &str) -> Result<Self> {
+        let options = SqliteConnectOptions::from_str(database_url)?
+            .create_if_missing(true);
+
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
-            .connect(database_url)
+            .connect_with(options)
             .await?;
 
         let db = Self { pool };
