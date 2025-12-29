@@ -24,6 +24,10 @@ pub enum Message {
     BackToMain,
     AccountNameInput(String),
     EmailInput(String),
+    MenuNavigateUp,
+    MenuNavigateDown,
+    MenuSelect,
+    MenuGoBack,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -49,6 +53,7 @@ pub struct ChainmailApp {
     account_name_input: String,
     email_input: String,
     oauth_state: Option<String>,
+    menu_selection_index: usize,
 }
 
 impl ChainmailApp {
@@ -70,6 +75,7 @@ impl ChainmailApp {
             account_name_input: String::new(),
             email_input: String::new(),
             oauth_state: None,
+            menu_selection_index: 0,
         })
     }
 
@@ -192,6 +198,12 @@ impl ChainmailApp {
                 Task::none()
             }
             Message::KeyPressed(key, modifiers) => {
+                // If we're in account management screens, handle menu navigation
+                if self.current_screen != AppScreen::Main {
+                    return self.handle_menu_keyboard(&key, &modifiers);
+                }
+
+                // Otherwise, handle Vim keybindings
                 let action = VimKeyHandler::handle_key_press(&mut self.vim_state, &key, &modifiers);
                 Task::done(Message::ExecuteVimAction(action))
             }
@@ -351,6 +363,25 @@ impl ChainmailApp {
                 self.email_input = input;
                 Task::none()
             }
+            Message::MenuNavigateUp => {
+                if self.menu_selection_index > 0 {
+                    self.menu_selection_index -= 1;
+                }
+                Task::none()
+            }
+            Message::MenuNavigateDown => {
+                let max_index = self.get_menu_option_count();
+                if self.menu_selection_index < max_index - 1 {
+                    self.menu_selection_index += 1;
+                }
+                Task::none()
+            }
+            Message::MenuSelect => {
+                self.handle_menu_selection()
+            }
+            Message::MenuGoBack => {
+                self.handle_menu_go_back()
+            }
         }
     }
 
@@ -411,5 +442,106 @@ impl ChainmailApp {
 
     pub fn email_input(&self) -> &str {
         &self.email_input
+    }
+
+    pub fn menu_selection_index(&self) -> usize {
+        self.menu_selection_index
+    }
+
+    fn handle_menu_keyboard(&self, key: &Key, _modifiers: &Modifiers) -> Task<Message> {
+        match key {
+            Key::Named(keyboard::key::Named::ArrowUp) => Task::done(Message::MenuNavigateUp),
+            Key::Named(keyboard::key::Named::ArrowDown) => Task::done(Message::MenuNavigateDown),
+            Key::Named(keyboard::key::Named::Enter) => Task::done(Message::MenuSelect),
+            Key::Named(keyboard::key::Named::Escape) => Task::done(Message::MenuGoBack),
+            Key::Character(c) if c == "j" => Task::done(Message::MenuNavigateDown),
+            Key::Character(c) if c == "k" => Task::done(Message::MenuNavigateUp),
+            _ => Task::none(),
+        }
+    }
+
+    fn get_menu_option_count(&self) -> usize {
+        match self.current_screen {
+            AppScreen::AccountManagement => 2, // "Add Account" and "Back to Mail"
+            AppScreen::ProviderSelection => 3, // "Gmail", "Other", "Back"
+            AppScreen::OAuthInProgress => 1,   // "Cancel"
+            AppScreen::ManualAccountSetup => 1, // "Back"
+            AppScreen::Main => 0,
+        }
+    }
+
+    fn handle_menu_selection(&mut self) -> Task<Message> {
+        match self.current_screen {
+            AppScreen::AccountManagement => {
+                match self.menu_selection_index {
+                    0 => {
+                        self.current_screen = AppScreen::ProviderSelection;
+                        self.menu_selection_index = 0;
+                        Task::done(Message::ShowProviderSelection)
+                    }
+                    1 => {
+                        self.current_screen = AppScreen::Main;
+                        self.menu_selection_index = 0;
+                        Task::done(Message::BackToMain)
+                    }
+                    _ => Task::none(),
+                }
+            }
+            AppScreen::ProviderSelection => {
+                match self.menu_selection_index {
+                    0 => {
+                        self.selected_provider = Some(AccountProvider::Gmail);
+                        Task::done(Message::SelectProvider(AccountProvider::Gmail))
+                    }
+                    1 => {
+                        self.selected_provider = Some(AccountProvider::Other);
+                        Task::done(Message::SelectProvider(AccountProvider::Other))
+                    }
+                    2 => {
+                        self.current_screen = AppScreen::AccountManagement;
+                        self.menu_selection_index = 0;
+                        Task::done(Message::ShowAccountManagement)
+                    }
+                    _ => Task::none(),
+                }
+            }
+            AppScreen::OAuthInProgress => {
+                self.current_screen = AppScreen::AccountManagement;
+                self.menu_selection_index = 0;
+                Task::done(Message::ShowAccountManagement)
+            }
+            AppScreen::ManualAccountSetup => {
+                self.current_screen = AppScreen::ProviderSelection;
+                self.menu_selection_index = 0;
+                Task::done(Message::ShowProviderSelection)
+            }
+            AppScreen::Main => Task::none(),
+        }
+    }
+
+    fn handle_menu_go_back(&mut self) -> Task<Message> {
+        match self.current_screen {
+            AppScreen::AccountManagement => {
+                self.current_screen = AppScreen::Main;
+                self.menu_selection_index = 0;
+                Task::done(Message::BackToMain)
+            }
+            AppScreen::ProviderSelection => {
+                self.current_screen = AppScreen::AccountManagement;
+                self.menu_selection_index = 0;
+                Task::done(Message::ShowAccountManagement)
+            }
+            AppScreen::OAuthInProgress => {
+                self.current_screen = AppScreen::AccountManagement;
+                self.menu_selection_index = 0;
+                Task::done(Message::ShowAccountManagement)
+            }
+            AppScreen::ManualAccountSetup => {
+                self.current_screen = AppScreen::ProviderSelection;
+                self.menu_selection_index = 0;
+                Task::done(Message::ShowProviderSelection)
+            }
+            AppScreen::Main => Task::none(),
+        }
     }
 }
