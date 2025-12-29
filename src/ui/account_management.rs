@@ -4,11 +4,12 @@ use iced::widget::{button, column, container, row, text, text_input, Column, Spa
 use iced::{alignment, Border, Color, Element, Length, Padding};
 
 pub fn account_management_view(app: &ChainmailApp) -> Element<Message> {
+    let selection_index = app.menu_selection_index();
     match app.current_screen() {
-        AppScreen::AccountManagement => account_management_menu(),
-        AppScreen::ProviderSelection => provider_selection_view(),
-        AppScreen::OAuthInProgress => oauth_in_progress_view(),
-        AppScreen::ManualAccountSetup => manual_account_setup_view(app),
+        AppScreen::AccountManagement => account_management_menu(selection_index),
+        AppScreen::ProviderSelection => provider_selection_view(selection_index),
+        AppScreen::OAuthInProgress => oauth_in_progress_view(selection_index),
+        AppScreen::ManualAccountSetup => manual_account_setup_view(selection_index),
         _ => {
             container(text("Invalid screen"))
                 .width(Length::Fill)
@@ -20,7 +21,49 @@ pub fn account_management_view(app: &ChainmailApp) -> Element<Message> {
     }
 }
 
-fn account_management_menu() -> Element<'static, Message> {
+fn account_management_menu(selection_index: usize) -> Element<'static, Message> {
+    let add_account_btn = button(
+        container(text("Add Account"))
+            .padding(15)
+            .width(Length::Fill)
+            .center_x(Length::Fill)
+    )
+    .on_press(Message::ShowProviderSelection)
+    .width(300)
+    .style(move |_theme: &iced::Theme, _status| {
+        let mut style = button::Style::default();
+        if selection_index == 0 {
+            style.border = Border {
+                color: Color::from_rgb(0.3, 0.6, 1.0),
+                width: 2.0,
+                radius: 4.0.into(),
+            };
+            style.background = Some(iced::Background::Color(Color::from_rgb(0.15, 0.2, 0.3)));
+        }
+        style
+    });
+
+    let back_btn = button(
+        container(text("Back to Mail"))
+            .padding(15)
+            .width(Length::Fill)
+            .center_x(Length::Fill)
+    )
+    .on_press(Message::BackToMain)
+    .width(300)
+    .style(move |_theme: &iced::Theme, _status| {
+        let mut style = button::Style::default();
+        if selection_index == 1 {
+            style.border = Border {
+                color: Color::from_rgb(0.3, 0.6, 1.0),
+                width: 2.0,
+                radius: 4.0.into(),
+            };
+            style.background = Some(iced::Background::Color(Color::from_rgb(0.15, 0.2, 0.3)));
+        }
+        style
+    });
+
     let content = column![
         text("Account Management")
             .size(32)
@@ -30,23 +73,9 @@ fn account_management_menu() -> Element<'static, Message> {
             .size(16)
             .color(Color::from_rgb(0.8, 0.8, 0.8)),
         Space::with_height(30),
-        button(
-            container(text("Add Account"))
-                .padding(15)
-                .width(Length::Fill)
-                .center_x(Length::Fill)
-        )
-        .on_press(Message::ShowProviderSelection)
-        .width(300),
+        add_account_btn,
         Space::with_height(15),
-        button(
-            container(text("Back to Mail"))
-                .padding(15)
-                .width(Length::Fill)
-                .center_x(Length::Fill)
-        )
-        .on_press(Message::BackToMain)
-        .width(300),
+        back_btn,
         Space::with_height(20),
         text("Tip: Use :account or :acc to access this menu")
             .size(12)
@@ -68,7 +97,91 @@ fn account_management_menu() -> Element<'static, Message> {
         .into()
 }
 
-fn provider_selection_view() -> Element<'static, Message> {
+fn provider_selection_view(selection_index: usize) -> Element<'static, Message> {
+    let gmail_btn = button(
+        container(
+            column![
+                text("Gmail")
+                    .size(20)
+                    .color(Color::WHITE),
+                Space::with_height(5),
+                text("Secure OAuth 2.0 authentication")
+                    .size(12)
+                    .color(Color::from_rgb(0.7, 0.7, 0.7)),
+            ]
+            .align_x(alignment::Horizontal::Center)
+        )
+        .padding(20)
+        .width(Length::Fill)
+        .center_x(Length::Fill)
+    )
+    .on_press(Message::SelectProvider(AccountProvider::Gmail))
+    .width(400)
+    .style(move |_theme: &iced::Theme, _status| {
+        let mut style = button::Style::default();
+        if selection_index == 0 {
+            style.border = Border {
+                color: Color::from_rgb(0.3, 0.6, 1.0),
+                width: 2.0,
+                radius: 4.0.into(),
+            };
+            style.background = Some(iced::Background::Color(Color::from_rgb(0.15, 0.2, 0.3)));
+        }
+        style
+    });
+
+    let other_btn = button(
+        container(
+            column![
+                text("Other Provider")
+                    .size(20)
+                    .color(Color::WHITE),
+                Space::with_height(5),
+                text("Manual IMAP configuration (coming soon)")
+                    .size(12)
+                    .color(Color::from_rgb(0.7, 0.7, 0.7)),
+            ]
+            .align_x(alignment::Horizontal::Center)
+        )
+        .padding(20)
+        .width(Length::Fill)
+        .center_x(Length::Fill)
+    )
+    .width(400)
+    .style(move |_theme: &iced::Theme, _status| {
+        let mut style = button::Style::default();
+        if selection_index == 1 {
+            style.border = Border {
+                color: Color::from_rgb(0.3, 0.6, 1.0),
+                width: 2.0,
+                radius: 4.0.into(),
+            };
+            style.background = Some(iced::Background::Color(Color::from_rgb(0.15, 0.2, 0.3)));
+        }
+        style
+    });
+
+    let back_btn = button(
+        container(text("Back"))
+            .padding(10)
+            .width(Length::Fill)
+            .center_x(Length::Fill)
+    )
+    .on_press(Message::ShowAccountManagement)
+    .width(200)
+    .style(move |_theme: &iced::Theme, _status| {
+        let mut style = button::Style::default();
+        if selection_index == 2 {
+            style.border = Border {
+                color: Color::from_rgb(0.3, 0.6, 1.0),
+                width: 2.0,
+                radius: 4.0.into(),
+            };
+            style.background = Some(iced::Background::Color(Color::from_rgb(0.15, 0.2, 0.3)));
+        }
+        style
+    });
+
     let content = column![
         text("Select Email Provider")
             .size(32)
@@ -78,53 +191,11 @@ fn provider_selection_view() -> Element<'static, Message> {
             .size(16)
             .color(Color::from_rgb(0.8, 0.8, 0.8)),
         Space::with_height(30),
-        button(
-            container(
-                column![
-                    text("Gmail")
-                        .size(20)
-                        .color(Color::WHITE),
-                    Space::with_height(5),
-                    text("Secure OAuth 2.0 authentication")
-                        .size(12)
-                        .color(Color::from_rgb(0.7, 0.7, 0.7)),
-                ]
-                .align_x(alignment::Horizontal::Center)
-            )
-            .padding(20)
-            .width(Length::Fill)
-            .center_x(Length::Fill)
-        )
-        .on_press(Message::SelectProvider(AccountProvider::Gmail))
-        .width(400),
+        gmail_btn,
         Space::with_height(15),
-        button(
-            container(
-                column![
-                    text("Other Provider")
-                        .size(20)
-                        .color(Color::WHITE),
-                    Space::with_height(5),
-                    text("Manual IMAP configuration (coming soon)")
-                        .size(12)
-                        .color(Color::from_rgb(0.7, 0.7, 0.7)),
-                ]
-                .align_x(alignment::Horizontal::Center)
-            )
-            .padding(20)
-            .width(Length::Fill)
-            .center_x(Length::Fill)
-        )
-        .width(400),
+        other_btn,
         Space::with_height(30),
-        button(
-            container(text("Back"))
-                .padding(10)
-                .width(Length::Fill)
-                .center_x(Length::Fill)
-        )
-        .on_press(Message::ShowAccountManagement)
-        .width(200),
+        back_btn,
     ]
     .spacing(0)
     .padding(40)
@@ -142,7 +213,28 @@ fn provider_selection_view() -> Element<'static, Message> {
         .into()
 }
 
-fn oauth_in_progress_view() -> Element<'static, Message> {
+fn oauth_in_progress_view(selection_index: usize) -> Element<'static, Message> {
+    let cancel_btn = button(
+        container(text("Cancel"))
+            .padding(10)
+            .width(Length::Fill)
+            .center_x(Length::Fill)
+    )
+    .on_press(Message::ShowAccountManagement)
+    .width(200)
+    .style(move |_theme: &iced::Theme, _status| {
+        let mut style = button::Style::default();
+        if selection_index == 0 {
+            style.border = Border {
+                color: Color::from_rgb(0.3, 0.6, 1.0),
+                width: 2.0,
+                radius: 4.0.into(),
+            };
+            style.background = Some(iced::Background::Color(Color::from_rgb(0.15, 0.2, 0.3)));
+        }
+        style
+    });
+
     let content = column![
         text("🔐 Authorization in Progress")
             .size(32)
@@ -173,14 +265,7 @@ fn oauth_in_progress_view() -> Element<'static, Message> {
             .size(14)
             .color(Color::from_rgb(0.5, 0.7, 1.0)),
         Space::with_height(30),
-        button(
-            container(text("Cancel"))
-                .padding(10)
-                .width(Length::Fill)
-                .center_x(Length::Fill)
-        )
-        .on_press(Message::ShowAccountManagement)
-        .width(200),
+        cancel_btn,
     ]
     .spacing(5)
     .padding(40)
@@ -198,7 +283,28 @@ fn oauth_in_progress_view() -> Element<'static, Message> {
         .into()
 }
 
-fn manual_account_setup_view(app: &ChainmailApp) -> Element<Message> {
+fn manual_account_setup_view(selection_index: usize) -> Element<'static, Message> {
+    let back_btn = button(
+        container(text("Back"))
+            .padding(10)
+            .width(Length::Fill)
+            .center_x(Length::Fill)
+    )
+    .on_press(Message::ShowProviderSelection)
+    .width(200)
+    .style(move |_theme: &iced::Theme, _status| {
+        let mut style = button::Style::default();
+        if selection_index == 0 {
+            style.border = Border {
+                color: Color::from_rgb(0.3, 0.6, 1.0),
+                width: 2.0,
+                radius: 4.0.into(),
+            };
+            style.background = Some(iced::Background::Color(Color::from_rgb(0.15, 0.2, 0.3)));
+        }
+        style
+    });
+
     let content = column![
         text("Manual Account Setup")
             .size(32)
@@ -212,14 +318,7 @@ fn manual_account_setup_view(app: &ChainmailApp) -> Element<Message> {
             .size(14)
             .color(Color::from_rgb(0.7, 0.7, 0.7)),
         Space::with_height(30),
-        button(
-            container(text("Back"))
-                .padding(10)
-                .width(Length::Fill)
-                .center_x(Length::Fill)
-        )
-        .on_press(Message::ShowProviderSelection)
-        .width(200),
+        back_btn,
     ]
     .spacing(0)
     .padding(40)
