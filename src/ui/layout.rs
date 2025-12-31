@@ -1,6 +1,6 @@
 use crate::app::{ChainmailApp, Message};
 use crate::vim::VimMode;
-use iced::widget::{column, container, row, scrollable, text, Column, Container, Row, Space};
+use iced::widget::{center, column, container, row, scrollable, stack, text, Column, Container, Row, Space};
 use iced::{alignment, Border, Color, Element, Length, Padding};
 
 pub fn main_view(app: &ChainmailApp) -> Element<Message> {
@@ -11,10 +11,20 @@ pub fn main_view(app: &ChainmailApp) -> Element<Message> {
     ]
     .spacing(0);
 
-    container(content)
+    let base_view = container(content)
         .width(Length::Fill)
-        .height(Length::Fill)
+        .height(Length::Fill);
+
+    // Show command modal overlay when in Command mode
+    if app.vim_state().mode == VimMode::Command {
+        stack![
+            base_view,
+            command_modal(app),
+        ]
         .into()
+    } else {
+        base_view.into()
+    }
 }
 
 fn search_bar(app: &ChainmailApp) -> Element<Message> {
@@ -40,14 +50,26 @@ fn search_bar(app: &ChainmailApp) -> Element<Message> {
 }
 
 fn main_layout(app: &ChainmailApp) -> Element<Message> {
-    row![
-        account_selector(app),
-        email_list(app),
-        email_display(app),
-    ]
-    .spacing(0)
-    .height(Length::Fill)
-    .into()
+    let has_selection = app.selected_message().is_some();
+
+    if has_selection {
+        row![
+            account_selector(app),
+            email_list(app),
+            email_display(app),
+        ]
+        .spacing(0)
+        .height(Length::Fill)
+        .into()
+    } else {
+        row![
+            account_selector(app),
+            email_list(app),
+        ]
+        .spacing(0)
+        .height(Length::Fill)
+        .into()
+    }
 }
 
 fn account_selector(_app: &ChainmailApp) -> Element<Message> {
@@ -150,8 +172,14 @@ fn email_list(app: &ChainmailApp) -> Element<Message> {
 
     let scrollable_list = scrollable(items);
 
+    let list_width = if selected_index.is_some() {
+        Length::FillPortion(1)
+    } else {
+        Length::Fill
+    };
+
     container(scrollable_list)
-        .width(400)
+        .width(list_width)
         .height(Length::Fill)
         .style(|theme: &iced::Theme| container::Style {
             background: Some(iced::Background::Color(Color::from_rgb(0.12, 0.12, 0.12))),
@@ -214,7 +242,7 @@ fn email_display(app: &ChainmailApp) -> Element<Message> {
     let scrollable_content = scrollable(content);
 
     container(scrollable_content)
-        .width(Length::Fill)
+        .width(Length::FillPortion(1))
         .height(Length::Fill)
         .style(|theme: &iced::Theme| container::Style {
             background: Some(iced::Background::Color(Color::from_rgb(0.1, 0.1, 0.1))),
@@ -239,19 +267,8 @@ fn status_bar(app: &ChainmailApp) -> Element<Message> {
         VimMode::Command => Color::from_rgb(1.0, 1.0, 0.5),
     };
 
-    let command_text = if vim_mode == VimMode::Command {
-        format!(": {}", app.vim_state().get_command())
-    } else {
-        String::new()
-    };
-
-    let status_content = row![
-        container(text(mode_text).size(14).color(mode_color))
-            .padding(Padding::from([4, 10])),
-        container(text(command_text).size(14))
-            .padding(Padding::from([4, 10])),
-    ]
-    .spacing(10);
+    let status_content = container(text(mode_text).size(14).color(mode_color))
+        .padding(Padding::from([4, 10]));
 
     container(status_content)
         .width(Length::Fill)
@@ -264,5 +281,27 @@ fn status_bar(app: &ChainmailApp) -> Element<Message> {
             },
             ..Default::default()
         })
+        .into()
+}
+
+fn command_modal(app: &ChainmailApp) -> Element<Message> {
+    let command_text = format!(": {}", app.vim_state().get_command());
+
+    let modal_content = container(text(command_text).size(16))
+        .padding(Padding::from([8, 16]))
+        .width(600)
+        .style(|theme: &iced::Theme| container::Style {
+            background: Some(iced::Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
+            border: Border {
+                color: Color::from_rgb(1.0, 1.0, 0.5),
+                width: 2.0,
+                radius: 4.0.into(),
+            },
+            ..Default::default()
+        });
+
+    center(modal_content)
+        .width(Length::Fill)
+        .height(Length::Fill)
         .into()
 }
